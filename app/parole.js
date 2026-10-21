@@ -1,29 +1,14 @@
 'use strict';
 
 const $ = (id) => document.getElementById(id);
-const VOWELS = new Set('aeiouàèéìòù');
-const LETTER = /^[a-zàèéìòù]$/;
-const PRAISE = ['Bravo!', 'Bravissimo!', 'Perfetto!', 'Ottimo!', 'Grande!'];
+const { el } = Game;
+const MODE_NAMES = { type: 'Scrivi', order: 'Rimetti in ordine', distractors: 'Con distrattori' };
+const privateImage = (w) => `/img/${w.imageId}`;
 
 let words = [];
 let mode = 'type';
-
-// ── Utilità ──
-function el(tag, className, text) {
-  const e = document.createElement(tag);
-  if (className) e.className = className;
-  if (text !== undefined) e.textContent = text;
-  return e;
-}
-
-function shuffle(list) {
-  const a = list.slice();
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
+let exercises = [];
+let publicUrl = '';
 
 function showScreen(name) {
   document.querySelectorAll('.screen').forEach((s) => s.classList.toggle('active', s.id === `screen-${name}`));
@@ -51,30 +36,11 @@ async function api(method, url, body, rawType) {
   return data;
 }
 
-function pictureNode(word) {
-  if (word.imageId) {
-    const img = el('img');
-    img.src = `/img/${word.imageId}`;
-    img.alt = '';
-    return img;
-  }
-  return document.createTextNode(word.emoji);
-}
+const pictureNode = (word) => Game.pictureNode(word, privateImage);
 
-function confetti() {
-  const box = $('confetti');
-  const colors = ['#FF6584', '#48BB78', '#FFD166', '#6C63FF', '#4FC3F7', '#fff'];
-  for (let i = 0; i < 60; i++) {
-    const p = el('div', 'confetti-piece');
-    p.style.left = `${Math.random() * 100}vw`;
-    p.style.width = `${6 + Math.random() * 8}px`;
-    p.style.height = `${8 + Math.random() * 10}px`;
-    p.style.background = colors[i % colors.length];
-    p.style.animationDuration = `${1.8 + Math.random() * 1.6}s`;
-    p.style.animationDelay = `${Math.random() * 0.5}s`;
-    box.append(p);
-  }
-  setTimeout(() => box.replaceChildren(), 3800);
+function goHome() {
+  renderHome();
+  showScreen('home');
 }
 
 // ── Accesso ──
@@ -103,13 +69,14 @@ async function enterHome() {
   const state = await api('GET', '/api/state');
   words = state.words;
   mode = state.mode;
-  renderHome();
-  showScreen('home');
+  exercises = state.exercises;
+  publicUrl = state.publicUrl;
+  goHome();
 }
 
 // ── Menu ──
 function renderHome() {
-  document.querySelectorAll('.mode-card').forEach((b) => {
+  document.querySelectorAll('#modes .mode-card').forEach((b) => {
     b.setAttribute('aria-pressed', String(b.dataset.mode === mode));
   });
   const empty = words.length === 0;
@@ -117,7 +84,7 @@ function renderHome() {
   $('start-btn').disabled = empty;
 }
 
-document.querySelectorAll('.mode-card').forEach((b) => {
+document.querySelectorAll('#modes .mode-card').forEach((b) => {
   b.addEventListener('click', async () => {
     const previous = mode;
     mode = b.dataset.mode;
@@ -129,6 +96,10 @@ document.querySelectorAll('.mode-card').forEach((b) => {
       renderHome();
     }
   });
+});
+
+$('start-btn').addEventListener('click', () => {
+  Game.start({ words, mode, imageUrl: privateImage, show: showScreen, onExit: goHome });
 });
 
 $('pin-btn').addEventListener('click', () => {
@@ -154,10 +125,7 @@ $('manage-btn').addEventListener('click', () => {
   showEditor(false);
   showScreen('manage');
 });
-$('manage-back').addEventListener('click', () => {
-  renderHome();
-  showScreen('home');
-});
+$('manage-back').addEventListener('click', goHome);
 
 function renderList() {
   const list = $('word-list');
@@ -188,11 +156,14 @@ function renderList() {
 async function saveWords(next) {
   const data = await api('PUT', '/api/words', { words: next });
   words = data.words;
+  exercises = data.exercises;
   renderList();
 }
 
 async function removeWord(w) {
-  if (!confirm(`Eliminare "${w.text}"?`)) return;
+  const used = exercises.filter((x) => x.wordIds.includes(w.id)).length;
+  const note = used ? `\nÈ usata in ${used} esercizi condivisi: verrà tolta anche da lì.` : '';
+  if (!confirm(`Eliminare "${w.text}"?${note}`)) return;
   try {
     await saveWords(words.filter((x) => x.id !== w.id));
   } catch (ex) {
@@ -305,215 +276,184 @@ $('edit-form').addEventListener('submit', async (e) => {
   }
 });
 
-// ── Esercizio ──
-let queue = [];
-let qi = 0;
-let cur = null;
-let answer = [];
-let tiles = [];
-let locked = false;
+// ── Esercizi da condividere ──
+let exEditing = null;
+let exMode = 'type';
 
-$('start-btn').addEventListener('click', startGame);
-$('again-btn').addEventListener('click', startGame);
-$('done-menu').addEventListener('click', () => {
-  renderHome();
-  showScreen('home');
-});
-$('play-back').addEventListener('click', () => {
-  renderHome();
-  showScreen('home');
-});
-
-function startGame() {
-  if (words.length === 0) return;
-  queue = shuffle(words);
-  qi = 0;
-  showScreen('play');
-  loadWord();
+function linkFor(token) {
+  return publicUrl ? `${publicUrl}/e/${token}` : `/e/${token}`;
 }
 
-function loadWord() {
-  cur = queue[qi];
-  locked = false;
-  $('progress').textContent = `${qi + 1} / ${queue.length}`;
-  $('picture').replaceChildren(pictureNode(cur));
-  $('win').classList.add('hidden');
-  $('next-btn').classList.add('hidden');
+function exerciseWords(ex) {
+  return ex.wordIds.map((id) => words.find((w) => w.id === id)).filter(Boolean);
+}
 
-  const letters = Array.from(cur.text);
-  answer = new Array(letters.length).fill(null);
+$('share-btn').addEventListener('click', () => {
+  renderExercises();
+  showExEditor(false);
+  showScreen('share');
+});
+$('share-back').addEventListener('click', goHome);
 
-  if (mode === 'type') {
-    tiles = [];
-  } else {
-    const pool = mode === 'distractors' ? [...letters, ...Array.from(cur.distractors)] : letters;
-    let order = shuffle(pool);
-    for (let tries = 0; mode === 'order' && tries < 10 && order.join('') === cur.text && letters.length > 1; tries++) {
-      order = shuffle(pool);
-    }
-    tiles = order.map((ch, id) => ({ id, ch, used: false }));
+function showExEditor(on) {
+  $('ex-form').classList.toggle('hidden', !on);
+  $('ex-view').classList.toggle('hidden', on);
+}
+
+async function copyText(text, input) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    // Fuori da HTTPS il browser non dà accesso agli appunti: si copia dalla casella
+    input.select();
+    return document.execCommand('copy');
   }
-
-  $('back-key').classList.toggle('hidden', mode !== 'type');
-  render();
-  if (mode === 'type') $('kb').focus();
 }
 
-function render() {
-  renderBoxes();
-  renderTiles();
+function renderExercises() {
+  $('share-warning').classList.toggle('hidden', Boolean(publicUrl));
+  const list = $('ex-list');
+  list.replaceChildren();
+  if (exercises.length === 0) {
+    list.append(el('li', 'ex-empty', 'Nessun esercizio: creane uno.'));
+  }
+  for (const ex of exercises) {
+    const ws = exerciseWords(ex);
+    const li = el('li', 'ex-item');
+    const head = el('div', 'word-info');
+    head.append(el('strong', 'ex-label', ex.label || 'Senza nome'));
+    head.append(el('span', '', `${MODE_NAMES[ex.mode]} · ${ws.length} ${ws.length === 1 ? 'parola' : 'parole'}`));
+
+    const link = el('input', 'ex-link');
+    link.type = 'text';
+    link.readOnly = true;
+    link.value = linkFor(ex.token);
+    link.setAttribute('aria-label', 'Link da condividere');
+
+    const actions = el('div', 'word-actions wrap');
+    const copy = el('button', 'small-btn green', 'Copia link');
+    copy.type = 'button';
+    copy.addEventListener('click', async () => {
+      copy.textContent = (await copyText(link.value, link)) ? 'Copiato!' : 'Copia a mano';
+      setTimeout(() => (copy.textContent = 'Copia link'), 1800);
+    });
+    actions.append(copy);
+    if (navigator.share && publicUrl) {
+      const share = el('button', 'small-btn', 'Condividi');
+      share.type = 'button';
+      share.addEventListener('click', () => navigator.share({ title: 'Esercizio', url: link.value }).catch(() => {}));
+      actions.append(share);
+    }
+    const tryBtn = el('button', 'small-btn', 'Prova');
+    tryBtn.type = 'button';
+    tryBtn.disabled = ws.length === 0;
+    tryBtn.addEventListener('click', () => {
+      Game.start({ words: ws, mode: ex.mode, imageUrl: privateImage, show: showScreen, onExit: () => showScreen('share') });
+    });
+    const edit = el('button', 'small-btn', 'Modifica');
+    edit.type = 'button';
+    edit.addEventListener('click', () => openExEditor(ex));
+    const del = el('button', 'small-btn danger', 'Elimina');
+    del.type = 'button';
+    del.addEventListener('click', () => removeExercise(ex));
+    actions.append(tryBtn, edit, del);
+
+    li.append(head, link, actions);
+    list.append(li);
+  }
 }
 
-function renderBoxes() {
-  const boxes = $('boxes');
-  boxes.replaceChildren();
-  const next = answer.indexOf(null);
-  answer.forEach((slot, i) => {
-    const ch = slot === null ? '' : typeof slot === 'string' ? slot : slot.ch;
-    const b = el('button', 'box', ch);
-    b.type = 'button';
-    if (ch) b.classList.add('filled');
-    if (ch && mode === 'distractors' && VOWELS.has(ch)) b.classList.add('vowel');
-    if (i === next && !locked) b.classList.add('active');
-    b.addEventListener('click', () => onBoxClick(i));
-    boxes.append(b);
+function renderExModes() {
+  document.querySelectorAll('#ex-modes .mode-card').forEach((b) => {
+    b.setAttribute('aria-pressed', String(b.dataset.mode === exMode));
   });
 }
+document.querySelectorAll('#ex-modes .mode-card').forEach((b) => {
+  b.addEventListener('click', () => {
+    exMode = b.dataset.mode;
+    renderExModes();
+  });
+});
 
-function tileButton(tile) {
-  const b = el('button', 'tile', tile.ch);
-  b.type = 'button';
-  if (mode === 'distractors' && VOWELS.has(tile.ch)) b.classList.add('vowel');
-  b.disabled = tile.used || locked;
-  b.addEventListener('click', () => onTileClick(tile));
-  return b;
-}
+function openExEditor(ex) {
+  exEditing = ex || null;
+  exMode = ex ? ex.mode : mode;
+  $('ex-title').textContent = ex ? 'Modifica esercizio' : 'Nuovo esercizio';
+  $('ex-label').value = ex ? ex.label : '';
+  $('ex-rotate').classList.toggle('hidden', !ex);
+  $('ex-error').classList.add('hidden');
+  renderExModes();
 
-function renderTiles() {
-  const box = $('tiles');
+  const box = $('ex-words');
   box.replaceChildren();
-  box.classList.toggle('split', mode === 'distractors');
-  if (mode === 'type') return;
-
-  if (mode === 'order') {
-    tiles.forEach((t) => box.append(tileButton(t)));
-    return;
+  const selected = new Set(ex ? ex.wordIds : []);
+  for (const w of words) {
+    const label = el('label', 'ex-word');
+    const cb = el('input');
+    cb.type = 'checkbox';
+    cb.value = w.id;
+    cb.checked = selected.has(w.id);
+    const thumb = el('span', 'thumb small');
+    thumb.append(pictureNode(w));
+    label.append(cb, thumb, el('span', 'ex-word-text', w.text));
+    box.append(label);
   }
-
-  const byLetter = (a, b) => a.ch.localeCompare(b.ch, 'it') || a.id - b.id;
-  const left = el('div', 'tile-col left');
-  const right = el('div', 'tile-col right');
-  tiles.filter((t) => !VOWELS.has(t.ch)).sort(byLetter).forEach((t) => left.append(tileButton(t)));
-  tiles.filter((t) => VOWELS.has(t.ch)).sort(byLetter).forEach((t) => right.append(tileButton(t)));
-  box.append(left, right);
+  if (words.length === 0) box.append(el('p', 'hint', 'L\'elenco parole è vuoto.'));
+  showExEditor(true);
+  $('ex-label').focus();
 }
 
-function onTileClick(tile) {
-  if (locked || tile.used) return;
-  const i = answer.indexOf(null);
-  if (i === -1) return;
-  tile.used = true;
-  answer[i] = tile;
-  render();
-  checkAnswer();
+$('ex-add').addEventListener('click', () => openExEditor(null));
+$('ex-cancel').addEventListener('click', () => showExEditor(false));
+
+function exError(msg) {
+  $('ex-error').textContent = msg;
+  $('ex-error').classList.remove('hidden');
 }
 
-function onBoxClick(i) {
-  if (locked) return;
-  if (mode === 'type') {
-    $('kb').focus();
-    return;
-  }
-  const tile = answer[i];
-  if (!tile) return;
-  tile.used = false;
-  answer[i] = null;
-  render();
-}
-
-function addChar(ch) {
-  if (locked) return;
-  const i = answer.indexOf(null);
-  if (i === -1) return;
-  answer[i] = ch;
-  render();
-  checkAnswer();
-}
-
-function removeChar() {
-  if (locked) return;
-  for (let i = answer.length - 1; i >= 0; i--) {
-    if (answer[i] !== null) {
-      answer[i] = null;
-      render();
-      return;
-    }
-  }
-}
-
-function checkAnswer() {
-  if (answer.includes(null)) return;
-  const guess = answer.map((a) => (typeof a === 'string' ? a : a.ch)).join('');
-  locked = true;
-  if (guess === cur.text) {
-    celebrate();
-    return;
-  }
-  renderTiles();
-  document.querySelectorAll('.box').forEach((b) => b.classList.add('wrong'));
-  setTimeout(() => {
-    answer.fill(null);
-    tiles.forEach((t) => (t.used = false));
-    locked = false;
-    render();
-    if (mode === 'type') $('kb').focus();
-  }, 650);
-}
-
-function celebrate() {
-  render();
-  document.querySelectorAll('.box').forEach((b) => {
-    b.classList.remove('filled', 'vowel', 'active');
-    b.classList.add('right');
-  });
-  $('kb').blur();
-  $('win').textContent = PRAISE[Math.floor(Math.random() * PRAISE.length)];
-  $('win').classList.remove('hidden');
-  $('next-btn').textContent = qi === queue.length - 1 ? 'Fine' : 'Avanti';
-  $('next-btn').classList.remove('hidden');
-  confetti();
-}
-
-$('next-btn').addEventListener('click', () => {
-  qi += 1;
-  if (qi >= queue.length) {
-    showScreen('done');
-    confetti();
-    return;
-  }
-  loadWord();
-});
-
-// Tastiera (modalità "Scrivi")
-$('kb').addEventListener('input', () => {
-  const v = $('kb').value.toLowerCase();
-  $('kb').value = '';
-  for (const ch of v) if (LETTER.test(ch)) addChar(ch);
-});
-$('back-key').addEventListener('click', () => {
-  removeChar();
-  $('kb').focus();
-});
-document.addEventListener('keydown', (e) => {
-  if (!$('screen-play').classList.contains('active') || mode !== 'type' || locked) return;
-  if (e.key === 'Backspace') {
-    e.preventDefault();
-    removeChar();
-  } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey
-             && document.activeElement !== $('kb') && LETTER.test(e.key.toLowerCase())) {
-    addChar(e.key.toLowerCase());
+$('ex-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const body = {
+    label: $('ex-label').value,
+    mode: exMode,
+    wordIds: [...document.querySelectorAll('#ex-words input:checked')].map((c) => c.value),
+  };
+  try {
+    const data = exEditing
+      ? await api('PUT', `/api/exercises/${exEditing.token}`, body)
+      : await api('POST', '/api/exercises', body);
+    exercises = data.exercises;
+    renderExercises();
+    showExEditor(false);
+  } catch (ex) {
+    exError(ex.message);
   }
 });
+
+$('ex-rotate').addEventListener('click', async () => {
+  if (!exEditing) return;
+  if (!confirm('Creare un nuovo link? Quello vecchio smetterà subito di funzionare.')) return;
+  try {
+    const data = await api('POST', `/api/exercises/${exEditing.token}/rotate`, {});
+    exercises = data.exercises;
+    renderExercises();
+    showExEditor(false);
+  } catch (ex) {
+    exError(ex.message);
+  }
+});
+
+async function removeExercise(ex) {
+  if (!confirm(`Eliminare l'esercizio "${ex.label || 'Senza nome'}"? Il suo link smetterà di funzionare.`)) return;
+  try {
+    const data = await api('DELETE', `/api/exercises/${ex.token}`);
+    exercises = data.exercises;
+    renderExercises();
+  } catch (e) {
+    alert(e.message);
+  }
+}
 
 // ── Avvio ──
 (async () => {

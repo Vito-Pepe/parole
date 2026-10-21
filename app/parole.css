@@ -199,6 +199,49 @@ body {
 .word-actions { display: flex; gap: 0.4rem; }
 .word-list .small-btn { color: #374151; background: #f3f4f6; border-color: #d1d5db; padding: 0.4rem 0.8rem; }
 .word-list .small-btn.danger { color: #fff; background: #dc2626; border-color: #dc2626; }
+.word-list .small-btn.green { color: #fff; background: var(--green); border-color: var(--green); }
+
+/* ── Esercizi da condividere ── */
+.word-list li.ex-item { flex-direction: column; align-items: stretch; gap: 0.6rem; }
+.ex-label { text-transform: none !important; letter-spacing: 0 !important; }
+.ex-link {
+  width: 100%;
+  padding: 0.5rem 0.7rem;
+  font-size: 0.85rem;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  line-height: 1.6;
+  color: #374151;
+  background: #f3f4f6;
+  border: 2px solid #e5e7eb;
+  border-radius: 10px;
+}
+.word-actions.wrap { flex-wrap: wrap; }
+.small-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.hint.warn { color: #b45309 !important; text-align: left; margin: 0; font-weight: 600; }
+
+.modes.compact { margin-bottom: 0; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.6rem; }
+.modes.compact .mode-card { padding: 0.7rem 0.5rem; box-shadow: none; border-color: #e5e7eb; }
+.modes.compact .mode-card[aria-pressed="true"] { border-color: var(--green); }
+.modes.compact .mode-card strong { font-size: 0.95rem; }
+.modes.compact .mode-icon { font-size: 1.6rem; }
+
+.ex-words { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.5rem; }
+.ex-word {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 0.5rem !important;
+  padding: 0.4rem 0.5rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 12px;
+  cursor: pointer;
+}
+.ex-word:has(input:checked) { border-color: var(--green); background: #f0fdf4; }
+.ex-word input { width: 18px; height: 18px; accent-color: var(--green); }
+.thumb.small { width: 36px; height: 36px; font-size: 1.3rem; border-radius: 8px; }
+.ex-word-text { text-transform: uppercase; letter-spacing: 1px; color: var(--violet); font-weight: 700; }
+
+/* ── Pagina pubblica ── */
+.intro-picture { font-size: 5rem; margin-bottom: 1rem; }
 
 /* ── Esercizio ── */
 .picture {

@@ -47,6 +47,7 @@
     <button id="start-btn" class="big-btn coral" type="button">Inizia</button>
     <div class="row">
       <button id="manage-btn" class="ghost-btn" type="button">Gestisci parole</button>
+      <button id="share-btn" class="ghost-btn" type="button">Esercizi da condividere</button>
       <button id="pin-btn" class="ghost-btn" type="button">Cambia codice</button>
       <button id="logout-btn" class="ghost-btn" type="button">Esci</button>
     </div>
@@ -104,6 +105,56 @@
     </form>
   </section>
 
+  <!-- ESERCIZI DA CONDIVIDERE -->
+  <section id="screen-share" class="screen">
+    <div class="topbar">
+      <button id="share-back" class="back-btn" type="button">&#8592; Menu</button>
+      <span class="topbar-title">Esercizi da condividere</span>
+    </div>
+
+    <div id="ex-view" class="wide">
+      <p class="hint">Ogni esercizio ha un link da mandare alla famiglia del paziente: aprendolo, il bambino gioca solo a quell'esercizio, senza codice e senza poter cambiare nulla.</p>
+      <p id="share-warning" class="error hidden">Indirizzo pubblico non configurato sul Pi: i link mostrano solo il percorso finale. Vedi il README della repo.</p>
+      <ul id="ex-list" class="word-list"></ul>
+      <button id="ex-add" class="big-btn green" type="button">+ Nuovo esercizio</button>
+    </div>
+
+    <form id="ex-form" class="panel wide hidden">
+      <h2 id="ex-title">Nuovo esercizio</h2>
+      <label>Nome dell'esercizio (lo vedi solo tu)
+        <input id="ex-label" type="text" maxlength="60" autocomplete="off" placeholder="es. Esercizio CA-CO, settimana 3">
+        <span class="hint warn">Non scrivere il nome del paziente: usa un riferimento che conosci solo tu.</span>
+      </label>
+
+      <fieldset>
+        <legend>Esercizio</legend>
+        <div id="ex-modes" class="modes compact">
+          <button type="button" class="mode-card" data-mode="type" aria-pressed="false">
+            <span class="mode-icon">⌨️</span><strong>Scrivi</strong>
+          </button>
+          <button type="button" class="mode-card" data-mode="order" aria-pressed="false">
+            <span class="mode-icon">🔀</span><strong>Rimetti in ordine</strong>
+          </button>
+          <button type="button" class="mode-card" data-mode="distractors" aria-pressed="false">
+            <span class="mode-icon">🧩</span><strong>Con distrattori</strong>
+          </button>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Parole</legend>
+        <div id="ex-words" class="ex-words"></div>
+      </fieldset>
+
+      <p id="ex-error" class="error hidden" role="alert"></p>
+      <div class="row">
+        <button class="small-btn green" type="submit">Salva</button>
+        <button id="ex-cancel" class="small-btn" type="button">Annulla</button>
+        <button id="ex-rotate" class="small-btn danger hidden" type="button">Nuovo link</button>
+      </div>
+    </form>
+  </section>
+
   <!-- ESERCIZIO -->
   <section id="screen-play" class="screen">
     <div class="topbar">
@@ -131,6 +182,7 @@
   </section>
 
   <div id="confetti"></div>
+  <script src="game.js"></script>
   <script src="parole.js"></script>
 </body>
 </html>

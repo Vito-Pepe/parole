@@ -2,14 +2,31 @@ services:
   parole:
     build: .
     ports:
-      # Raggiungibile dalla LAN (http://IP-DEL-PI:8082) e, tramite
-      # tailscale serve, da remoto su https://<nome>.<tailnet>.ts.net:10000.
+      # App completa (codice, gestione, esercizi): dalla LAN http://IP-DEL-PI:8082
+      # e dalla tailnet http://<nome>.<tailnet>.ts.net:8082. Mai su Internet.
       - "8082:3000"
+      # Solo gli esercizi condivisi via link: pubblicata su Internet con
+      # "tailscale funnel --https=10000 localhost:8083" (vedi README).
+      - "8083:3001"
+    environment:
+      # Indirizzo pubblico per comporre i link, letto dal file .env accanto a questo
+      # (es. PUBLIC_URL=https://vito.<tailnet>.ts.net:10000). Il file .env non va su git.
+      - PUBLIC_URL=${PUBLIC_URL:-}
     volumes:
-      # Parole, foto e codice: restano anche se il container viene ricostruito.
+      # Parole, foto, esercizi e codice: restano anche se il container viene ricostruito.
       # Attenzione: "docker compose down -v" cancella anche questi dati.
       - parole-data:/data
     restart: unless-stopped
+    # Contenimento: filesystem in sola lettura tranne /data, nessun privilegio extra
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    pids_limit: 100
 
 volumes:
   parole-data:

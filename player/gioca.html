@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <title>Parole</title>
+  <link rel="stylesheet" href="/parole.css">
+</head>
+<body>
+
+  <section id="screen-loading" class="screen active">
+    <h1 class="title">Parole</h1>
+    <p class="subtitle">Un attimo…</p>
+  </section>
+
+  <section id="screen-intro" class="screen">
+    <div class="intro-picture" aria-hidden="true">🧩</div>
+    <h1 class="title">Parole</h1>
+    <p id="intro-text" class="subtitle"></p>
+    <button id="intro-start" class="big-btn coral" type="button">Inizia</button>
+  </section>
+
+  <section id="screen-missing" class="screen">
+    <h1 class="title">Ops!</h1>
+    <p class="subtitle">Questo esercizio non c'è più. Chiedi un nuovo link alla logopedista.</p>
+  </section>
+
+  <section id="screen-play" class="screen">
+    <div class="topbar">
+      <button id="play-back" class="back-btn" type="button">&#8592; Esci</button>
+      <span id="progress" class="topbar-title"></span>
+    </div>
+
+    <div id="picture" class="picture"></div>
+    <div id="boxes" class="boxes" aria-label="Riquadri della parola"></div>
+    <input id="kb" class="kb" type="text" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" aria-label="Scrivi la parola">
+    <button id="back-key" class="small-btn hidden" type="button" aria-label="Cancella l'ultima lettera">&#9003; Cancella</button>
+
+    <div id="tiles" class="tiles"></div>
+
+    <p id="win" class="win hidden">Bravo!</p>
+    <button id="next-btn" class="big-btn green hidden" type="button">Avanti</button>
+  </section>
+
+  <section id="screen-done" class="screen">
+    <h1 class="title">Bravissimo!</h1>
+    <p class="subtitle">Hai finito tutte le parole</p>
+    <button id="again-btn" class="big-btn coral" type="button">Ricomincia</button>
+    <button id="done-menu" class="ghost-btn" type="button">Torna all'inizio</button>
+  </section>
+
+  <div id="confetti"></div>
+  <script src="/game.js"></script>
+  <script src="/gioca.js"></script>
+</body>
+</html>

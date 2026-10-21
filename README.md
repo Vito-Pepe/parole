@@ -68,6 +68,31 @@ Per spegnere la parte pubblica in qualsiasi momento:
 sudo tailscale funnel --https=10000 off
 ```
 
+## Isolamento dalla rete di casa
+
+Parole non ha bisogno di aprire connessioni verso nessuno. Le regole in `firewall/` bloccano ogni connessione nuova che parte dal suo bridge (`br-parole`) verso LAN, tailnet, Internet e verso il Pi stesso. Le risposte alle richieste in arrivo restano permesse. Così, anche se qualcuno sfruttasse un difetto della parte pubblica, dal container non potrebbe raggiungere gli altri dispositivi di casa.
+
+Installazione (una volta sola; lo script viene copiato in una cartella di root, così gli aggiornamenti automatici della repo non possono cambiarlo):
+
+```bash
+cd ~/parole
+sudo install -m 755 firewall/parole-firewall.sh /usr/local/sbin/parole-firewall.sh
+sudo install -m 644 firewall/parole-firewall.service /etc/systemd/system/parole-firewall.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now parole-firewall.service
+sudo parole-firewall.sh status
+```
+
+Verifica: prima di attivare le regole il comando deve rispondere `RAGGIUNTO` (altrimenti il test non dice nulla: prova un altro indirizzo della LAN), dopo deve rispondere `BLOCCATO`.
+
+```bash
+docker compose exec parole wget -q -T 3 -O /dev/null http://192.168.1.1 && echo RAGGIUNTO || echo BLOCCATO
+```
+
+Tentativi bloccati: `sudo journalctl -k | grep parole-bloccato`. Per togliere le regole: `sudo systemctl disable --now parole-firewall.service`.
+
+Limite noto: il container può ancora fare richieste DNS tramite il resolver interno di Docker.
+
 ## Porte
 
 | App | LAN (http) | Tailnet | Internet |

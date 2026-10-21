@@ -27,6 +27,15 @@ services:
       - no-new-privileges:true
     mem_limit: 256m
     pids_limit: 100
+    networks:
+      - parole-net
+
+networks:
+  # Bridge con nome fisso: le regole firewall in firewall/ lo riconoscono per nome
+  # e impediscono al container di aprire connessioni verso LAN, Pi e Internet.
+  parole-net:
+    driver_opts:
+      com.docker.network.bridge.name: br-parole
 
 volumes:
   parole-data:

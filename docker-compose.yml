@@ -1,0 +1,15 @@
+services:
+  parole:
+    build: .
+    ports:
+      # Raggiungibile dalla LAN (http://IP-DEL-PI:8082) e, tramite
+      # tailscale serve, da remoto su https://<nome>.<tailnet>.ts.net:10000.
+      - "8082:3000"
+    volumes:
+      # Parole, foto e codice: restano anche se il container viene ricostruito.
+      # Attenzione: "docker compose down -v" cancella anche questi dati.
+      - parole-data:/data
+    restart: unless-stopped
+
+volumes:
+  parole-data:

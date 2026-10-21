@@ -13,6 +13,9 @@ const PUBLIC_PORT = Number(process.env.PUBLIC_PORT) || 3001;
 const PUBLIC_URL = /^https?:\/\/[^\s/?#]+$/.test(String(process.env.PUBLIC_URL || '').replace(/\/+$/, ''))
   ? String(process.env.PUBLIC_URL).replace(/\/+$/, '')
   : '';
+// Interruttore temporaneo: con DISABLE_LOGIN=1 l'app privata non chiede il codice.
+// Non tocca la porta pubblica, che non ha mai login.
+const LOGIN_DISABLED = process.env.DISABLE_LOGIN === '1';
 
 const DATA_DIR = process.env.DATA_DIR || '/data';
 const APP_DIR = path.join(__dirname, 'app');
@@ -208,6 +211,7 @@ function parseCookies(header) {
 }
 
 function isAuthed(req) {
+  if (LOGIN_DISABLED) return true;
   const token = parseCookies(req.headers.cookie).s;
   if (!token) return false;
   const [exp, mac] = token.split('.');
@@ -354,7 +358,7 @@ async function handleApi(req, res, url) {
   }
 
   if (route === 'GET /api/session') {
-    return sendJson(res, 200, { auth: isAuthed(req) });
+    return sendJson(res, 200, { auth: isAuthed(req), loginDisabled: LOGIN_DISABLED });
   }
 
   if (!isAuthed(req)) throw httpError(401, 'Accesso richiesto');
@@ -520,7 +524,10 @@ function makeServer(handler) {
   return server;
 }
 
-makeServer(handlePrivate).listen(PORT, () => console.log(`Parole (privata) sulla porta ${PORT}`));
+makeServer(handlePrivate).listen(PORT, () => {
+  console.log(`Parole (privata) sulla porta ${PORT}`);
+  if (LOGIN_DISABLED) console.log('ATTENZIONE: DISABLE_LOGIN=1, l\'app privata è aperta senza codice');
+});
 makeServer(handlePublic).listen(PUBLIC_PORT, () => {
   console.log(`Parole (esercizi pubblici) sulla porta ${PUBLIC_PORT}`);
   if (!PUBLIC_URL) console.log('PUBLIC_URL non impostato: i link degli esercizi mostrano solo il percorso');

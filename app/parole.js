@@ -9,6 +9,7 @@ let words = [];
 let mode = 'type';
 let exercises = [];
 let publicUrl = '';
+let loginDisabled = false;
 
 function showScreen(name) {
   document.querySelectorAll('.screen').forEach((s) => s.classList.toggle('active', s.id === `screen-${name}`));
@@ -82,6 +83,8 @@ function renderHome() {
   const empty = words.length === 0;
   $('home-empty').classList.toggle('hidden', !empty);
   $('start-btn').disabled = empty;
+  $('logout-btn').classList.toggle('hidden', loginDisabled);
+  $('pin-btn').classList.toggle('hidden', loginDisabled);
 }
 
 document.querySelectorAll('#modes .mode-card').forEach((b) => {
@@ -459,6 +462,7 @@ async function removeExercise(ex) {
 (async () => {
   try {
     const s = await api('GET', '/api/session');
+    loginDisabled = Boolean(s.loginDisabled);
     if (s.auth) {
       await enterHome();
       return;

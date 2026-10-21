@@ -12,6 +12,8 @@ services:
       # Indirizzo pubblico per comporre i link, letto dal file .env accanto a questo
       # (es. PUBLIC_URL=https://vito.<tailnet>.ts.net:10000). Il file .env non va su git.
       - PUBLIC_URL=${PUBLIC_URL:-}
+      # Temporaneo: DISABLE_LOGIN=1 nel file .env apre l'app privata senza codice.
+      - DISABLE_LOGIN=${DISABLE_LOGIN:-}
     volumes:
       # Parole, foto, esercizi e codice: restano anche se il container viene ricostruito.
       # Attenzione: "docker compose down -v" cancella anche questi dati.

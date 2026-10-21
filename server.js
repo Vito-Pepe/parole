@@ -467,8 +467,11 @@ const PUBLIC_FILES = {
 
 function publicHeaders(req) {
   const h = { 'X-Robots-Tag': 'noindex, nofollow' };
+  // HSTS vale per l'intero nome host, porte comprese: attivarlo qui costringerebbe il browser
+  // ad aprire in https anche le altre app sullo stesso host (che usano http). Con max-age=0
+  // i browser che l'avevano già memorizzato la dimenticano alla prossima visita.
   if (req.headers['x-forwarded-proto'] === 'https') {
-    h['Strict-Transport-Security'] = 'max-age=31536000';
+    h['Strict-Transport-Security'] = 'max-age=0';
   }
   return h;
 }

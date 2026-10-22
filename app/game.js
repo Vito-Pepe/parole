@@ -50,7 +50,7 @@ window.Game = (() => {
     setTimeout(() => box.replaceChildren(), 3800);
   }
 
-  // cfg: { words, mode, imageUrl(word), show(name), onExit() }
+  // cfg: { words, mode, imageUrl(word), show(name), onExit(), onFinish()? }
   let cfg = null;
   let queue = [];
   let qi = 0;
@@ -225,6 +225,7 @@ window.Game = (() => {
     if (qi >= queue.length) {
       cfg.show('done');
       confetti();
+      if (cfg.onFinish) cfg.onFinish();
       return;
     }
     loadWord();

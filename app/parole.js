@@ -3,12 +3,14 @@
 const $ = (id) => document.getElementById(id);
 const { el } = Game;
 const MODE_NAMES = { type: 'Scrivi', order: 'Rimetti in ordine', distractors: 'Con distrattori' };
+const MODE_ICONS = { type: '⌨️', order: '🔀', distractors: '🧩' };
 const privateImage = (w) => `/img/${w.imageId}`;
 
 let words = [];
 let mode = 'type';
 let exercises = [];
 let publicUrl = '';
+let groups = [];
 let loginDisabled = false;
 
 function showScreen(name) {
@@ -71,6 +73,7 @@ async function enterHome() {
   words = state.words;
   mode = state.mode;
   exercises = state.exercises;
+  groups = state.groups || [];
   publicUrl = state.publicUrl;
   goHome();
 }
@@ -292,15 +295,22 @@ function exerciseWords(ex) {
 }
 
 $('share-btn').addEventListener('click', () => {
-  renderExercises();
-  showExEditor(false);
+  renderShare();
+  showShareView('list');
   showScreen('share');
 });
 $('share-back').addEventListener('click', goHome);
 
-function showExEditor(on) {
-  $('ex-form').classList.toggle('hidden', !on);
-  $('ex-view').classList.toggle('hidden', on);
+// view: 'list' (elenchi), 'ex' (modifica esercizio), 'group' (modifica gruppo)
+function showShareView(view) {
+  $('ex-view').classList.toggle('hidden', view !== 'list');
+  $('ex-form').classList.toggle('hidden', view !== 'ex');
+  $('group-form').classList.toggle('hidden', view !== 'group');
+}
+
+function renderShare() {
+  renderExercises();
+  renderGroups();
 }
 
 async function copyText(text, input) {
@@ -312,6 +322,32 @@ async function copyText(text, input) {
     input.select();
     return document.execCommand('copy');
   }
+}
+
+function linkInput(token) {
+  const link = el('input', 'ex-link');
+  link.type = 'text';
+  link.readOnly = true;
+  link.value = linkFor(token);
+  link.setAttribute('aria-label', 'Link da condividere');
+  return link;
+}
+
+function shareButtons(link) {
+  const copy = el('button', 'small-btn green', 'Copia link');
+  copy.type = 'button';
+  copy.addEventListener('click', async () => {
+    copy.textContent = (await copyText(link.value, link)) ? 'Copiato!' : 'Copia a mano';
+    setTimeout(() => (copy.textContent = 'Copia link'), 1800);
+  });
+  const out = [copy];
+  if (navigator.share && publicUrl) {
+    const share = el('button', 'small-btn', 'Condividi');
+    share.type = 'button';
+    share.addEventListener('click', () => navigator.share({ title: 'Esercizio', url: link.value }).catch(() => {}));
+    out.push(share);
+  }
+  return out;
 }
 
 function renderExercises() {
@@ -326,28 +362,15 @@ function renderExercises() {
     const li = el('li', 'ex-item');
     const head = el('div', 'word-info');
     head.append(el('strong', 'ex-label', ex.label || 'Senza nome'));
-    head.append(el('span', '', `${MODE_NAMES[ex.mode]} · ${ws.length} ${ws.length === 1 ? 'parola' : 'parole'}`));
+    const inGroups = groups.filter((g) => g.exerciseIds.includes(ex.id)).length;
+    let meta = `${MODE_NAMES[ex.mode]} · ${ws.length} ${ws.length === 1 ? 'parola' : 'parole'}`;
+    if (ex.title) meta += ` · titolo "${ex.title}"`;
+    if (inGroups) meta += ` · in ${inGroups} ${inGroups === 1 ? 'gruppo' : 'gruppi'}`;
+    head.append(el('span', '', meta));
 
-    const link = el('input', 'ex-link');
-    link.type = 'text';
-    link.readOnly = true;
-    link.value = linkFor(ex.token);
-    link.setAttribute('aria-label', 'Link da condividere');
-
+    const link = linkInput(ex.token);
     const actions = el('div', 'word-actions wrap');
-    const copy = el('button', 'small-btn green', 'Copia link');
-    copy.type = 'button';
-    copy.addEventListener('click', async () => {
-      copy.textContent = (await copyText(link.value, link)) ? 'Copiato!' : 'Copia a mano';
-      setTimeout(() => (copy.textContent = 'Copia link'), 1800);
-    });
-    actions.append(copy);
-    if (navigator.share && publicUrl) {
-      const share = el('button', 'small-btn', 'Condividi');
-      share.type = 'button';
-      share.addEventListener('click', () => navigator.share({ title: 'Esercizio', url: link.value }).catch(() => {}));
-      actions.append(share);
-    }
+    actions.append(...shareButtons(link));
     const tryBtn = el('button', 'small-btn', 'Prova');
     tryBtn.type = 'button';
     tryBtn.disabled = ws.length === 0;
@@ -384,6 +407,7 @@ function openExEditor(ex) {
   exMode = ex ? ex.mode : mode;
   $('ex-title').textContent = ex ? 'Modifica esercizio' : 'Nuovo esercizio';
   $('ex-label').value = ex ? ex.label : '';
+  $('ex-public-title').value = ex ? ex.title : '';
   $('ex-rotate').classList.toggle('hidden', !ex);
   $('ex-error').classList.add('hidden');
   renderExModes();
@@ -403,12 +427,12 @@ function openExEditor(ex) {
     box.append(label);
   }
   if (words.length === 0) box.append(el('p', 'hint', 'L\'elenco parole è vuoto.'));
-  showExEditor(true);
+  showShareView('ex');
   $('ex-label').focus();
 }
 
 $('ex-add').addEventListener('click', () => openExEditor(null));
-$('ex-cancel').addEventListener('click', () => showExEditor(false));
+$('ex-cancel').addEventListener('click', () => showShareView('list'));
 
 function exError(msg) {
   $('ex-error').textContent = msg;
@@ -419,6 +443,7 @@ $('ex-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const body = {
     label: $('ex-label').value,
+    title: $('ex-public-title').value,
     mode: exMode,
     wordIds: [...document.querySelectorAll('#ex-words input:checked')].map((c) => c.value),
   };
@@ -427,8 +452,9 @@ $('ex-form').addEventListener('submit', async (e) => {
       ? await api('PUT', `/api/exercises/${exEditing.token}`, body)
       : await api('POST', '/api/exercises', body);
     exercises = data.exercises;
-    renderExercises();
-    showExEditor(false);
+    if (data.groups) groups = data.groups;
+    renderShare();
+    showShareView('list');
   } catch (ex) {
     exError(ex.message);
   }
@@ -440,19 +466,143 @@ $('ex-rotate').addEventListener('click', async () => {
   try {
     const data = await api('POST', `/api/exercises/${exEditing.token}/rotate`, {});
     exercises = data.exercises;
-    renderExercises();
-    showExEditor(false);
+    if (data.groups) groups = data.groups;
+    renderShare();
+    showShareView('list');
   } catch (ex) {
     exError(ex.message);
   }
 });
 
 async function removeExercise(ex) {
-  if (!confirm(`Eliminare l'esercizio "${ex.label || 'Senza nome'}"? Il suo link smetterà di funzionare.`)) return;
+  const inGroups = groups.filter((g) => g.exerciseIds.includes(ex.id)).length;
+  const note = inGroups ? `\nÈ in ${inGroups} ${inGroups === 1 ? 'gruppo' : 'gruppi'}: verrà tolto anche da lì.` : '';
+  if (!confirm(`Eliminare l'esercizio "${ex.label || 'Senza nome'}"? Il suo link smetterà di funzionare.${note}`)) return;
   try {
     const data = await api('DELETE', `/api/exercises/${ex.token}`);
     exercises = data.exercises;
-    renderExercises();
+    if (data.groups) groups = data.groups;
+    renderShare();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+// ── Gruppi di esercizi ──
+let groupEditing = null;
+
+function groupExercises(g) {
+  return g.exerciseIds.map((id) => exercises.find((x) => x.id === id)).filter(Boolean);
+}
+
+function renderGroups() {
+  const list = $('group-list');
+  list.replaceChildren();
+  if (groups.length === 0) {
+    list.append(el('li', 'ex-empty', 'Nessun gruppo: creane uno.'));
+  }
+  for (const g of groups) {
+    const items = groupExercises(g);
+    const li = el('li', 'ex-item');
+    const head = el('div', 'word-info');
+    head.append(el('strong', 'ex-label', g.label || 'Senza nome'));
+    const names = items.map((x) => x.label || 'Senza nome').join(', ');
+    head.append(el('span', '', `${items.length} ${items.length === 1 ? 'esercizio' : 'esercizi'}${names ? `: ${names}` : ''}`));
+
+    const link = linkInput(g.token);
+    const actions = el('div', 'word-actions wrap');
+    actions.append(...shareButtons(link));
+    if (publicUrl) {
+      const open = el('button', 'small-btn', 'Apri');
+      open.type = 'button';
+      open.addEventListener('click', () => window.open(link.value, '_blank', 'noopener'));
+      actions.append(open);
+    }
+    const edit = el('button', 'small-btn', 'Modifica');
+    edit.type = 'button';
+    edit.addEventListener('click', () => openGroupEditor(g));
+    const del = el('button', 'small-btn danger', 'Elimina');
+    del.type = 'button';
+    del.addEventListener('click', () => removeGroup(g));
+    actions.append(edit, del);
+
+    li.append(head, link, actions);
+    list.append(li);
+  }
+}
+
+function openGroupEditor(g) {
+  groupEditing = g || null;
+  $('group-title').textContent = g ? 'Modifica gruppo' : 'Nuovo gruppo';
+  $('group-label').value = g ? g.label : '';
+  $('group-rotate').classList.toggle('hidden', !g);
+  $('group-error').classList.add('hidden');
+
+  const box = $('group-items');
+  box.replaceChildren();
+  const selected = new Set(g ? g.exerciseIds : []);
+  for (const ex of exercises) {
+    const label = el('label', 'ex-word group-item');
+    const cb = el('input');
+    cb.type = 'checkbox';
+    cb.value = ex.id;
+    cb.checked = selected.has(ex.id);
+    const text = el('span', 'group-item-text');
+    text.append(el('strong', '', ex.label || 'Senza nome'));
+    text.append(el('span', '', MODE_NAMES[ex.mode] + (ex.title ? ` · "${ex.title}"` : '')));
+    label.append(cb, el('span', 'group-item-icon', MODE_ICONS[ex.mode]), text);
+    box.append(label);
+  }
+  if (exercises.length === 0) box.append(el('p', 'hint', 'Crea prima almeno un esercizio.'));
+  showShareView('group');
+  $('group-label').focus();
+}
+
+function groupError(msg) {
+  $('group-error').textContent = msg;
+  $('group-error').classList.remove('hidden');
+}
+
+$('group-add').addEventListener('click', () => openGroupEditor(null));
+$('group-cancel').addEventListener('click', () => showShareView('list'));
+
+$('group-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const body = {
+    label: $('group-label').value,
+    exerciseIds: [...document.querySelectorAll('#group-items input:checked')].map((c) => c.value),
+  };
+  try {
+    const data = groupEditing
+      ? await api('PUT', `/api/groups/${groupEditing.token}`, body)
+      : await api('POST', '/api/groups', body);
+    groups = data.groups;
+    renderShare();
+    showShareView('list');
+  } catch (ex) {
+    groupError(ex.message);
+  }
+});
+
+$('group-rotate').addEventListener('click', async () => {
+  if (!groupEditing) return;
+  if (!confirm('Creare un nuovo link per il gruppo? Quello vecchio smetterà subito di funzionare.')) return;
+  try {
+    const data = await api('POST', `/api/groups/${groupEditing.token}/rotate`, {});
+    groups = data.groups;
+    renderShare();
+    showShareView('list');
+  } catch (ex) {
+    groupError(ex.message);
+  }
+});
+
+async function removeGroup(g) {
+  if (!confirm(`Eliminare il gruppo "${g.label || 'Senza nome'}"? Il suo link smetterà di funzionare (gli esercizi restano).`)) return;
+  try {
+    const data = await api('DELETE', `/api/groups/${g.token}`);
+    groups = data.groups;
+    renderShare();
   } catch (e) {
     alert(e.message);
   }

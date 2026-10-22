@@ -23,6 +23,8 @@ const PLAYER_DIR = path.join(__dirname, 'player');
 const IMG_DIR = path.join(DATA_DIR, 'images');
 const WORDS_FILE = path.join(DATA_DIR, 'words.json');
 const EXERCISES_FILE = path.join(DATA_DIR, 'exercises.json');
+// File separato: la versione senza gruppi lo ignora, quindi si può tornare indietro.
+const GROUPS_FILE = path.join(DATA_DIR, 'groups.json');
 const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
 const SECRET_FILE = path.join(DATA_DIR, 'secret');
 
@@ -35,6 +37,8 @@ const TOKEN = /^[A-Za-z0-9_-]{22}$/;
 const SESSION_MS = 24 * 60 * 60 * 1000;
 const MAX_WORDS = 500;
 const MAX_EXERCISES = 300;
+const MAX_GROUPS = 300;
+const MAX_GROUP_ITEMS = 20;
 const MAX_IMAGES = 1000;
 
 fs.mkdirSync(IMG_DIR, { recursive: true });
@@ -152,6 +156,14 @@ function removeOrphanImages() {
 // ── Esercizi condivisi ──
 let exercises = readJson(EXERCISES_FILE, []);
 if (!Array.isArray(exercises)) exercises = [];
+// Id interno stabile per i gruppi (il token cambia con "Nuovo link"). Gli esercizi creati
+// prima dei gruppi, o da una versione senza gruppi, lo ricevono qui.
+if (exercises.some((ex) => !WORD_ID.test(String(ex.id || '')))) {
+  exercises.forEach((ex) => {
+    if (!WORD_ID.test(String(ex.id || ''))) ex.id = newId();
+  });
+  writeAtomic(EXERCISES_FILE, JSON.stringify(exercises));
+}
 
 function saveExercises() {
   writeAtomic(EXERCISES_FILE, JSON.stringify(exercises));
@@ -160,13 +172,15 @@ function saveExercises() {
 function cleanExercise(body) {
   if (!body || typeof body !== 'object') throw httpError(400, 'Esercizio non valido');
   const label = String(body.label || '').trim().slice(0, 60);
+  // Titolo visibile alla famiglia nella pagina di scelta di un gruppo (facoltativo)
+  const title = String(body.title || '').trim().slice(0, 40);
   if (!MODES.includes(body.mode)) throw httpError(400, 'Scegli il tipo di esercizio');
   const known = new Set(words.map((w) => w.id));
   const wordIds = [...new Set(Array.isArray(body.wordIds) ? body.wordIds.map(String) : [])]
     .filter((id) => known.has(id))
     .slice(0, MAX_WORDS);
   if (wordIds.length === 0) throw httpError(400, 'Scegli almeno una parola');
-  return { label, mode: body.mode, wordIds };
+  return { label, title, mode: body.mode, wordIds };
 }
 
 function findExercise(token) {
@@ -189,6 +203,54 @@ function pruneExercises() {
     }
   }
   if (changed) saveExercises();
+}
+
+// ── Gruppi: un solo link per più esercizi ──
+let groups = readJson(GROUPS_FILE, []);
+if (!Array.isArray(groups)) groups = [];
+
+function saveGroups() {
+  writeAtomic(GROUPS_FILE, JSON.stringify(groups));
+}
+
+function cleanGroup(body) {
+  if (!body || typeof body !== 'object') throw httpError(400, 'Gruppo non valido');
+  const label = String(body.label || '').trim().slice(0, 60);
+  const known = new Set(exercises.map((x) => x.id));
+  const exerciseIds = [...new Set(Array.isArray(body.exerciseIds) ? body.exerciseIds.map(String) : [])]
+    .filter((id) => known.has(id))
+    .slice(0, MAX_GROUP_ITEMS);
+  if (exerciseIds.length === 0) throw httpError(400, 'Scegli almeno un esercizio');
+  return { label, exerciseIds };
+}
+
+function findGroup(token) {
+  return TOKEN.test(token) ? groups.find((g) => g.token === token) : undefined;
+}
+
+// Chiave pubblica di un esercizio dentro un gruppo: stabile, ma non rivela il token dell'esercizio.
+function itemKey(group, ex) {
+  return crypto.createHash('sha256').update(`${group.token}:${ex.id}`).digest('base64url').slice(0, 12);
+}
+
+// Esercizi del gruppo che hanno ancora almeno una parola, nell'ordine scelto.
+function itemsOf(group) {
+  return group.exerciseIds
+    .map((id) => exercises.find((x) => x.id === id))
+    .filter((ex) => ex && wordsOf(ex).length > 0);
+}
+
+function pruneGroups() {
+  const known = new Set(exercises.map((x) => x.id));
+  let changed = false;
+  for (const g of groups) {
+    const kept = g.exerciseIds.filter((id) => known.has(id));
+    if (kept.length !== g.exerciseIds.length) {
+      g.exerciseIds = kept;
+      changed = true;
+    }
+  }
+  if (changed) saveGroups();
 }
 
 // ── Sessioni ──
@@ -329,7 +391,11 @@ function sendFile(req, res, file, extraHeaders = {}) {
 }
 
 function exerciseList() {
-  return exercises.map(({ token, label, mode, wordIds }) => ({ token, label, mode, wordIds }));
+  return exercises.map(({ id, token, label, title, mode, wordIds }) => ({ id, token, label, title: title || '', mode, wordIds }));
+}
+
+function groupList() {
+  return groups.map(({ token, label, exerciseIds }) => ({ token, label, exerciseIds }));
 }
 
 // ── API privata ──
@@ -364,7 +430,9 @@ async function handleApi(req, res, url) {
   if (!isAuthed(req)) throw httpError(401, 'Accesso richiesto');
 
   if (route === 'GET /api/state') {
-    return sendJson(res, 200, { words, mode: settings.mode, exercises: exerciseList(), publicUrl: PUBLIC_URL });
+    return sendJson(res, 200, {
+      words, mode: settings.mode, exercises: exerciseList(), groups: groupList(), publicUrl: PUBLIC_URL,
+    });
   }
 
   if (route === 'PUT /api/words') {
@@ -414,7 +482,7 @@ async function handleApi(req, res, url) {
 
   if (route === 'POST /api/exercises') {
     if (exercises.length >= MAX_EXERCISES) throw httpError(400, 'Troppi esercizi: eliminane qualcuno');
-    const ex = { token: newToken(), ...cleanExercise(await readJsonBody(req, 64 * 1024)) };
+    const ex = { id: newId(), token: newToken(), ...cleanExercise(await readJsonBody(req, 64 * 1024)) };
     exercises.push(ex);
     saveExercises();
     return sendJson(res, 201, { exercises: exerciseList() });
@@ -428,13 +496,38 @@ async function handleApi(req, res, url) {
       Object.assign(ex, cleanExercise(await readJsonBody(req, 64 * 1024)));
     } else if (req.method === 'DELETE' && !m[2]) {
       exercises = exercises.filter((x) => x !== ex);
+      pruneGroups();
     } else if (req.method === 'POST' && m[2]) {
       ex.token = newToken();
     } else {
       throw httpError(405, 'Metodo non consentito');
     }
     saveExercises();
-    return sendJson(res, 200, { exercises: exerciseList() });
+    return sendJson(res, 200, { exercises: exerciseList(), groups: groupList() });
+  }
+
+  if (route === 'POST /api/groups') {
+    if (groups.length >= MAX_GROUPS) throw httpError(400, 'Troppi gruppi: eliminane qualcuno');
+    groups.push({ token: newToken(), ...cleanGroup(await readJsonBody(req, 64 * 1024)) });
+    saveGroups();
+    return sendJson(res, 201, { groups: groupList() });
+  }
+
+  const g = url.pathname.match(/^\/api\/groups\/([^/]+)(\/rotate)?$/);
+  if (g) {
+    const group = findGroup(g[1]);
+    if (!group) throw httpError(404, 'Gruppo non trovato');
+    if (req.method === 'PUT' && !g[2]) {
+      Object.assign(group, cleanGroup(await readJsonBody(req, 64 * 1024)));
+    } else if (req.method === 'DELETE' && !g[2]) {
+      groups = groups.filter((x) => x !== group);
+    } else if (req.method === 'POST' && g[2]) {
+      group.token = newToken();
+    } else {
+      throw httpError(405, 'Metodo non consentito');
+    }
+    saveGroups();
+    return sendJson(res, 200, { groups: groupList() });
   }
 
   throw httpError(404, 'Non trovato');
@@ -476,6 +569,11 @@ function publicHeaders(req) {
   return h;
 }
 
+function sendExercise(res, ex, extra) {
+  const payload = wordsOf(ex).map(({ text, emoji, imageId, distractors }) => ({ text, emoji, imageId, distractors }));
+  return sendJson(res, 200, { mode: ex.mode, words: payload }, extra);
+}
+
 function handlePublic(req, res, url) {
   if (req.method !== 'GET' && req.method !== 'HEAD') throw httpError(405, 'Metodo non consentito');
   const p = url.pathname;
@@ -486,19 +584,37 @@ function handlePublic(req, res, url) {
   let m = p.match(/^\/e\/([^/]+)$/);
   if (m) return sendFile(req, res, path.join(PLAYER_DIR, 'gioca.html'), extra);
 
-  m = p.match(/^\/api\/e\/([^/]+)$/);
+  m = p.match(/^\/api\/e\/([^/]+)(?:\/([A-Za-z0-9_-]{12}))?$/);
   if (m) {
     const ex = findExercise(m[1]);
-    const list = ex ? wordsOf(ex) : [];
-    if (list.length === 0) throw httpError(404, 'Esercizio non trovato');
-    const payload = list.map(({ text, emoji, imageId, distractors }) => ({ text, emoji, imageId, distractors }));
-    return sendJson(res, 200, { mode: ex.mode, words: payload }, extra);
+    if (ex && !m[2]) return sendExercise(res, ex, extra);
+
+    const group = findGroup(m[1]);
+    const items = group ? itemsOf(group) : [];
+    if (items.length === 0) throw httpError(404, 'Esercizio non trovato');
+    if (m[2]) {
+      const item = items.find((x) => itemKey(group, x) === m[2]);
+      if (!item) throw httpError(404, 'Esercizio non trovato');
+      return sendExercise(res, item, extra);
+    }
+    // Con un solo esercizio il gruppo si comporta come un link singolo
+    if (items.length === 1) return sendExercise(res, items[0], extra);
+    const choices = items.map((x) => ({
+      key: itemKey(group, x),
+      title: x.title || '',
+      mode: x.mode,
+      count: wordsOf(x).length,
+      preview: wordsOf(x).slice(0, 3).map(({ emoji, imageId }) => ({ emoji, imageId })),
+    }));
+    return sendJson(res, 200, { choices }, extra);
   }
 
   m = p.match(/^\/img\/([^/]+)\/([^/]+)$/);
   if (m) {
     const ex = findExercise(m[1]);
-    if (!ex || !IMG_NAME.test(m[2]) || !wordsOf(ex).some((w) => w.imageId === m[2])) {
+    const group = ex ? null : findGroup(m[1]);
+    const pool = ex ? wordsOf(ex) : group ? itemsOf(group).flatMap(wordsOf) : [];
+    if (!IMG_NAME.test(m[2]) || !pool.some((w) => w.imageId === m[2])) {
       throw httpError(404, 'Non trovato');
     }
     return sendImage(res, m[2]);

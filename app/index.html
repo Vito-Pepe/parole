@@ -117,6 +117,11 @@
       <p id="share-warning" class="error hidden">Indirizzo pubblico non configurato sul Pi: i link mostrano solo il percorso finale. Vedi il README della repo.</p>
       <ul id="ex-list" class="word-list"></ul>
       <button id="ex-add" class="big-btn green" type="button">+ Nuovo esercizio</button>
+
+      <h2 class="section-title">Gruppi di esercizi</h2>
+      <p class="hint">Un gruppo raccoglie più esercizi, anche di tipo diverso, sotto un unico link: la famiglia apre il link e il bambino sceglie quale esercizio fare.</p>
+      <ul id="group-list" class="word-list"></ul>
+      <button id="group-add" class="big-btn green" type="button">+ Nuovo gruppo</button>
     </div>
 
     <form id="ex-form" class="panel wide hidden">
@@ -124,6 +129,10 @@
       <label>Nome dell'esercizio (lo vedi solo tu)
         <input id="ex-label" type="text" maxlength="60" autocomplete="off" placeholder="es. Esercizio CA-CO, settimana 3">
         <span class="hint warn">Non scrivere il nome del paziente: usa un riferimento che conosci solo tu.</span>
+      </label>
+      <label>Titolo per il bambino (facoltativo)
+        <input id="ex-public-title" type="text" maxlength="40" autocomplete="off" placeholder="es. Gli animali">
+        <span class="hint">Compare sul riquadro dell'esercizio quando fa parte di un gruppo.</span>
       </label>
 
       <fieldset>
@@ -151,6 +160,24 @@
         <button class="small-btn green" type="submit">Salva</button>
         <button id="ex-cancel" class="small-btn" type="button">Annulla</button>
         <button id="ex-rotate" class="small-btn danger hidden" type="button">Nuovo link</button>
+      </div>
+    </form>
+
+    <form id="group-form" class="panel wide hidden">
+      <h2 id="group-title">Nuovo gruppo</h2>
+      <label>Nome del gruppo (lo vedi solo tu)
+        <input id="group-label" type="text" maxlength="60" autocomplete="off" placeholder="es. Compiti settimana 3">
+        <span class="hint warn">Non scrivere il nome del paziente: usa un riferimento che conosci solo tu.</span>
+      </label>
+      <fieldset>
+        <legend>Esercizi del gruppo</legend>
+        <div id="group-items" class="group-items"></div>
+      </fieldset>
+      <p id="group-error" class="error hidden" role="alert"></p>
+      <div class="row">
+        <button class="small-btn green" type="submit">Salva</button>
+        <button id="group-cancel" class="small-btn" type="button">Annulla</button>
+        <button id="group-rotate" class="small-btn danger hidden" type="button">Nuovo link</button>
       </div>
     </form>
   </section>

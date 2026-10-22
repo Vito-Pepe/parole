@@ -17,6 +17,16 @@ Dal menu, "Esercizi da condividere" permette di preparare un esercizio (nome int
 - Le foto usate negli esercizi condivisi devono essere immagini generiche (una casa, un gatto), mai foto di persone.
 - L'app non registra nulla di chi gioca: nessun nome, nessun risultato.
 
+### Gruppi di esercizi
+
+Un gruppo raccoglie più esercizi, anche di tipo diverso, sotto un unico link. Chi apre il link vede una pagina con un riquadro per esercizio (icona della modalità, titolo, anteprima delle immagini) e il bambino sceglie da lì. A fine esercizio torna alla scelta, e gli esercizi completati restano segnati con una spunta. La spunta è salvata solo nel browser della famiglia: il server non registra nulla. Un gruppo con un solo esercizio porta dritto all'esercizio.
+
+- Ogni esercizio può avere un **titolo per il bambino** (facoltativo), mostrato sul riquadro. Senza titolo compare il nome della modalità. Il nome interno non compare mai.
+- Lo stesso esercizio può stare in più gruppi e continuare ad avere anche il suo link singolo. "Nuovo link" su un esercizio non rompe i gruppi che lo contengono.
+- Eliminando un esercizio, viene tolto anche dai gruppi. Eliminando un gruppo, gli esercizi restano.
+
+I gruppi sono salvati in un file separato (`groups.json`). Se si torna a una versione senza gruppi, i link dei singoli esercizi continuano a funzionare, solo i link dei gruppi smettono, e i gruppi riappaiono intatti tornando a questa versione.
+
 ## Come funziona
 
 Un piccolo server Node senza dipendenze (`server.js`) ascolta su **due porte**:

@@ -64,6 +64,8 @@ I link diventano `https://parole-esercizi.<tailnet>.ts.net/e/<codice>`.
 
 Lo stesso ingresso pubblica anche i **giochi** della homepage sul percorso `/g/` (verso `127.0.0.1:8084`, il servizio `giochi` della repo homepage): link del tipo `https://parole-esercizi.<tailnet>.ts.net/g/<codice>`. Se la homepage non è in esecuzione, quei link danno errore e gli esercizi di Parole non sono toccati.
 
+Allo stesso modo pubblica i **minigiochi** (repo minigiochi) sul percorso `/m/`, verso `127.0.0.1:8086`: link del tipo `https://parole-esercizi.<tailnet>.ts.net/m/<codice>`. Dopo una modifica a `tailscale/serve.json` il servizio va ricreato, perché legge il file solo all'avvio: `docker compose up -d --force-recreate tailscale-public`.
+
 1. Nel pannello Tailscale (Settings > Keys) genera una **auth key** monouso, non "ephemeral". Funnel deve essere permesso ai tuoi dispositivi (lo è se lo usavi già su `vito`).
 2. Sul Pi, nella cartella di Parole, aggiungi al file `.env` l'attivazione del servizio, la chiave (senza che finisca nella cronologia della shell) e il nuovo indirizzo dei link:
 

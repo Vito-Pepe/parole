@@ -34,7 +34,7 @@ Un piccolo server Node senza dipendenze (`server.js`) ascolta su **due porte**:
 | Porta nel container | Sul Pi | Cosa offre | Chi la raggiunge |
 |---|---|---|---|
 | 3000 | 8082 | App completa: codice, gestione parole, esercizi | LAN e tailnet, mai Internet |
-| 3001 | 8083 | Solo gli esercizi condivisi, letti tramite link | Internet, con `tailscale funnel` |
+| 3001 | 8083 | Solo gli esercizi condivisi, letti tramite link | Internet, tramite il servizio `tailscale-public` |
 
 La porta pubblica non ha login, non accetta scritture e non elenca nulla: risponde solo a un link valido (codice casuale da 128 bit, non indovinabile) e serve solo le foto delle parole di quell'esercizio. Il resto restituisce 404.
 
@@ -50,32 +50,47 @@ Il container gira come utente non privilegiato, con filesystem in sola lettura t
 cd ~
 git clone -b <branch> https://github.com/Vito-Pepe/parole.git
 cd parole
-# Indirizzo pubblico per comporre i link (il nome tailnet lo vedi con "tailscale status")
-echo "PUBLIC_URL=https://vito.<tailnet>.ts.net:10000" > .env
 docker compose up --build -d
 curl -I http://127.0.0.1:8082
 ```
 
-Pubblicazione degli esercizi su Internet (porta HTTPS 10000). Funnel va abilitato una volta nel pannello Tailscale: se non lo è, il comando stampa il link per farlo.
+L'app privata si apre su `http://IP-DEL-PI:8082` da casa e su `http://vito.<tailnet>.ts.net:8082` dalla tailnet (il traffico Tailscale è comunque cifrato).
 
-```bash
-sudo tailscale funnel --bg --https=10000 localhost:8083
-tailscale funnel status
-```
+### Pubblicazione degli esercizi su Internet
 
-L'app privata non passa da `tailscale serve`: si apre su `http://IP-DEL-PI:8082` da casa e su `http://vito.<tailnet>.ts.net:8082` dalla tailnet (il traffico Tailscale è comunque cifrato).
+Gli esercizi escono su Internet da un **dispositivo Tailscale separato**, `parole-esercizi`, che gira in un container accanto a Parole (servizio `tailscale-public`). Riceve le richieste con il funnel di Tailscale e le passa alla porta pubblica di Parole (8083). Il nome del Pi (`vito.<tailnet>.ts.net`) resta così solo privato: niente conflitti con il Relay privato di iCloud sull'iPhone, e la parte esposta ha un'identità tutta sua.
 
-Aggiornamento automatico ogni 5 minuti, e ricostruzione settimanale dell'immagine per ricevere le patch di sicurezza di Node e Alpine (senza sudo):
+I link diventano `https://parole-esercizi.<tailnet>.ts.net/e/<codice>`.
+
+1. Nel pannello Tailscale (Settings > Keys) genera una **auth key** monouso, non "ephemeral". Funnel deve essere permesso ai tuoi dispositivi (lo è se lo usavi già su `vito`).
+2. Sul Pi, nella cartella di Parole, aggiungi al file `.env` l'attivazione del servizio, la chiave (senza che finisca nella cronologia della shell) e il nuovo indirizzo dei link:
+
+   ```bash
+   cd ~/parole
+   echo "COMPOSE_PROFILES=public" >> .env
+   read -rsp "Incolla la auth key: " K && echo "TS_AUTHKEY=$K" >> .env && unset K && echo
+   sed -i '/^PUBLIC_URL=/d' .env && echo "PUBLIC_URL=https://parole-esercizi.<tailnet>.ts.net" >> .env
+   docker compose up -d
+   docker compose logs --tail 30 tailscale-public
+   docker compose exec tailscale-public tailscale --socket=/tmp/tailscaled.sock funnel status
+   ```
+
+3. Prova un link dal telefono con i dati mobili e Tailscale spento.
+4. Nel pannello Tailscale, sul dispositivo `parole-esercizi`: **Disable key expiry**. Poi togli la chiave dal `.env`, che non serve più (l'identità resta salvata nel volume `parole_tailscale-public-state`):
+
+   ```bash
+   sed -i '/^TS_AUTHKEY=/d' .env
+   ```
+
+Per spegnere la parte pubblica in qualsiasi momento: `docker compose stop tailscale-public`. Per riaccenderla: `docker compose start tailscale-public`.
+
+### Aggiornamenti automatici
+
+Ogni 5 minuti (codice) e ogni settimana (immagini di Node, Alpine e Tailscale con le patch di sicurezza), senza sudo:
 
 ```bash
 (crontab -l 2>/dev/null; echo "*/5 * * * * cd $HOME/parole && ./update.sh >> $HOME/parole/update.log 2>&1") | crontab -
-(crontab -l 2>/dev/null; echo "30 4 * * 1 cd $HOME/parole && docker compose build --pull -q && docker compose up -d >> $HOME/parole/update.log 2>&1") | crontab -
-```
-
-Per spegnere la parte pubblica in qualsiasi momento:
-
-```bash
-sudo tailscale funnel --https=10000 off
+(crontab -l 2>/dev/null; echo "30 4 * * 1 cd $HOME/parole && docker compose pull -q --ignore-buildable && docker compose build --pull -q && docker compose up -d >> $HOME/parole/update.log 2>&1") | crontab -
 ```
 
 ## Isolamento dalla rete di casa
@@ -110,7 +125,7 @@ Limite noto: il container può ancora fare richieste DNS tramite il resolver int
 | homepage | 8081 | https :443 | no |
 | sillabe | 8080 | https :8443 | no |
 | parole (app) | 8082 | http :8082 | no |
-| parole (esercizi) | 8083 | — | https :10000 (funnel) |
+| parole (esercizi) | 8083 | — | https `parole-esercizi.<tailnet>.ts.net` (funnel, dispositivo separato) |
 
 ## Dati e backup
 

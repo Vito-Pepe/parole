@@ -1,0 +1,69 @@
+services:
+  parole:
+    build: .
+    ports:
+      # App completa (codice, gestione, esercizi): dalla LAN http://IP-DEL-PI:8082
+      # e dalla tailnet http://<nome>.<tailnet>.ts.net:8082. Mai su Internet.
+      - "8082:3000"
+      # Solo gli esercizi condivisi via link: pubblicata su Internet dal servizio
+      # tailscale-public qui sotto (vedi README).
+      - "8083:3001"
+    environment:
+      # Indirizzo pubblico per comporre i link, letto dal file .env accanto a questo
+      # (es. PUBLIC_URL=https://parole-esercizi.<tailnet>.ts.net). Il file .env non va su git.
+      - PUBLIC_URL=${PUBLIC_URL:-}
+      # Temporaneo: DISABLE_LOGIN=1 nel file .env apre l'app privata senza codice.
+      - DISABLE_LOGIN=${DISABLE_LOGIN:-}
+    volumes:
+      # Parole, foto, esercizi e codice: restano anche se il container viene ricostruito.
+      # Attenzione: "docker compose down -v" cancella anche questi dati.
+      - parole-data:/data
+    restart: unless-stopped
+    # Contenimento: filesystem in sola lettura tranne /data, nessun privilegio extra
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    pids_limit: 100
+    networks:
+      - parole-net
+
+  # Ingresso pubblico degli esercizi: un dispositivo Tailscale a sé ("parole-esercizi") che
+  # pubblica su Internet con il funnel solo la porta 8083. Così il nome del Pi resta privato.
+  # Parte solo con COMPOSE_PROFILES=public nel file .env (vedi README).
+  tailscale-public:
+    image: tailscale/tailscale:stable
+    profiles: ["public"]
+    # Rete del Pi per raggiungere 127.0.0.1:8083. Modalità utente: nessuna interfaccia di rete,
+    # nessuna rotta, nessun conflitto con il Tailscale già installato sul Pi.
+    network_mode: host
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY:-}
+      - TS_HOSTNAME=parole-esercizi
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_USERSPACE=true
+      - TS_SERVE_CONFIG=/config/serve.json
+      # Porta UDP automatica: la 41641 è già usata dal Tailscale del Pi
+      - TS_TAILSCALED_EXTRA_ARGS=--port=0
+    volumes:
+      # Identità del dispositivo: dopo il primo avvio la chiave TS_AUTHKEY non serve più
+      - tailscale-public-state:/var/lib/tailscale
+      - ./tailscale/serve.json:/config/serve.json:ro
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+
+networks:
+  # Bridge con nome fisso: le regole firewall in firewall/ lo riconoscono per nome
+  # e impediscono al container di aprire connessioni verso LAN, Pi e Internet.
+  parole-net:
+    driver_opts:
+      com.docker.network.bridge.name: br-parole
+
+volumes:
+  parole-data:
+  tailscale-public-state:

@@ -1,0 +1,15 @@
+[Unit]
+Description=Isola il container di Parole dal resto della rete
+After=docker.service
+Requires=docker.service
+# Riapplica le regole quando Docker viene riavviato
+PartOf=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/parole-firewall.sh apply
+ExecStop=/usr/local/sbin/parole-firewall.sh remove
+
+[Install]
+WantedBy=docker.service

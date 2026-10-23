@@ -1,0 +1,8 @@
+.git
+.env
+README.md
+update.sh
+docker-compose.yml
+node_modules
+data
+tailscale

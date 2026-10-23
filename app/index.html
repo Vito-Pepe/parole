@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Parole</title>
+  <link rel="stylesheet" href="parole.css">
+</head>
+<body>
+
+  <!-- ACCESSO -->
+  <section id="screen-login" class="screen active">
+    <h1 class="title">Parole</h1>
+    <p class="subtitle">Inserisci il codice per entrare</p>
+    <form id="login-form" class="stack">
+      <input id="pin" class="pin-input" type="password" inputmode="numeric" autocomplete="off"
+             maxlength="8" aria-label="Codice" required>
+      <button class="big-btn coral" type="submit">Entra</button>
+    </form>
+    <p id="login-error" class="error hidden" role="alert"></p>
+  </section>
+
+  <!-- MENU DELL'ADULTO -->
+  <section id="screen-home" class="screen">
+    <h1 class="title">Parole</h1>
+    <p class="subtitle">Scegli l'esercizio</p>
+
+    <div id="modes" class="modes">
+      <button type="button" class="mode-card" data-mode="type" aria-pressed="false">
+        <span class="mode-icon">⌨️</span>
+        <strong>Scrivi</strong>
+        <span>Compila i riquadri con la tastiera</span>
+      </button>
+      <button type="button" class="mode-card" data-mode="order" aria-pressed="false">
+        <span class="mode-icon">🔀</span>
+        <strong>Rimetti in ordine</strong>
+        <span>Ordina le lettere della parola</span>
+      </button>
+      <button type="button" class="mode-card" data-mode="distractors" aria-pressed="false">
+        <span class="mode-icon">🧩</span>
+        <strong>Con distrattori</strong>
+        <span>Ordina le lettere, trovando quelle giuste</span>
+      </button>
+    </div>
+
+    <p id="home-empty" class="hint hidden">L'elenco è vuoto: aggiungi almeno una parola.</p>
+    <button id="start-btn" class="big-btn coral" type="button">Inizia</button>
+    <div class="row">
+      <button id="manage-btn" class="ghost-btn" type="button">Gestisci parole</button>
+      <button id="share-btn" class="ghost-btn" type="button">Esercizi da condividere</button>
+      <button id="pin-btn" class="ghost-btn" type="button">Cambia codice</button>
+      <button id="logout-btn" class="ghost-btn" type="button">Esci</button>
+    </div>
+
+    <form id="pin-form" class="panel hidden">
+      <label>Codice attuale <input id="pin-old" type="password" inputmode="numeric" maxlength="8" required></label>
+      <label>Nuovo codice (4-8 cifre) <input id="pin-new" type="password" inputmode="numeric" maxlength="8" required></label>
+      <div class="row">
+        <button class="small-btn green" type="submit">Salva</button>
+        <button class="small-btn" type="button" id="pin-cancel">Annulla</button>
+      </div>
+      <p id="pin-msg" class="hint"></p>
+    </form>
+  </section>
+
+  <!-- ELENCO PAROLE -->
+  <section id="screen-manage" class="screen">
+    <div class="topbar">
+      <button id="manage-back" class="back-btn" type="button">&#8592; Menu</button>
+      <span class="topbar-title">Elenco parole</span>
+    </div>
+
+    <div id="list-view" class="wide">
+      <ul id="word-list" class="word-list"></ul>
+      <button id="add-btn" class="big-btn green" type="button">+ Aggiungi parola</button>
+    </div>
+
+    <form id="edit-form" class="panel wide hidden">
+      <h2 id="edit-title">Nuova parola</h2>
+      <label>Parola
+        <input id="f-text" type="text" maxlength="20" autocomplete="off" autocapitalize="none" spellcheck="false" required>
+      </label>
+
+      <fieldset>
+        <legend>Immagine</legend>
+        <div class="preview" id="f-preview" aria-live="polite"></div>
+        <label>Emoji
+          <input id="f-emoji" type="text" maxlength="16" autocomplete="off" placeholder="🏠">
+        </label>
+        <label class="file-label">Oppure una foto
+          <input id="f-photo" type="file" accept="image/*">
+        </label>
+        <button id="f-photo-clear" class="small-btn hidden" type="button">Togli la foto</button>
+      </fieldset>
+
+      <label>Lettere distrattrici (solo per l'esercizio con distrattori)
+        <input id="f-distractors" type="text" maxlength="24" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="es. ot">
+      </label>
+
+      <p id="edit-error" class="error hidden" role="alert"></p>
+      <div class="row">
+        <button class="small-btn green" type="submit">Salva</button>
+        <button id="edit-cancel" class="small-btn" type="button">Annulla</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- ESERCIZI DA CONDIVIDERE -->
+  <section id="screen-share" class="screen">
+    <div class="topbar">
+      <button id="share-back" class="back-btn" type="button">&#8592; Menu</button>
+      <span class="topbar-title">Esercizi da condividere</span>
+    </div>
+
+    <div id="ex-view" class="wide">
+      <p class="hint">Ogni esercizio ha un link da mandare alla famiglia del paziente: aprendolo, il bambino gioca solo a quell'esercizio, senza codice e senza poter cambiare nulla.</p>
+      <p id="share-warning" class="error hidden">Indirizzo pubblico non configurato sul Pi: i link mostrano solo il percorso finale. Vedi il README della repo.</p>
+      <ul id="ex-list" class="word-list"></ul>
+      <button id="ex-add" class="big-btn green" type="button">+ Nuovo esercizio</button>
+
+      <h2 class="section-title">Gruppi di esercizi</h2>
+      <p class="hint">Un gruppo raccoglie più esercizi, anche di tipo diverso, sotto un unico link: la famiglia apre il link e il bambino sceglie quale esercizio fare.</p>
+      <ul id="group-list" class="word-list"></ul>
+      <button id="group-add" class="big-btn green" type="button">+ Nuovo gruppo</button>
+    </div>
+
+    <form id="ex-form" class="panel wide hidden">
+      <h2 id="ex-title">Nuovo esercizio</h2>
+      <label>Nome dell'esercizio (lo vedi solo tu)
+        <input id="ex-label" type="text" maxlength="60" autocomplete="off" placeholder="es. Esercizio CA-CO, settimana 3">
+        <span class="hint warn">Non scrivere il nome del paziente: usa un riferimento che conosci solo tu.</span>
+      </label>
+      <label>Titolo per il bambino (facoltativo)
+        <input id="ex-public-title" type="text" maxlength="40" autocomplete="off" placeholder="es. Gli animali">
+        <span class="hint">Compare sul riquadro dell'esercizio quando fa parte di un gruppo.</span>
+      </label>
+
+      <fieldset>
+        <legend>Esercizio</legend>
+        <div id="ex-modes" class="modes compact">
+          <button type="button" class="mode-card" data-mode="type" aria-pressed="false">
+            <span class="mode-icon">⌨️</span><strong>Scrivi</strong>
+          </button>
+          <button type="button" class="mode-card" data-mode="order" aria-pressed="false">
+            <span class="mode-icon">🔀</span><strong>Rimetti in ordine</strong>
+          </button>
+          <button type="button" class="mode-card" data-mode="distractors" aria-pressed="false">
+            <span class="mode-icon">🧩</span><strong>Con distrattori</strong>
+          </button>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Parole</legend>
+        <div id="ex-words" class="ex-words"></div>
+      </fieldset>
+
+      <p id="ex-error" class="error hidden" role="alert"></p>
+      <div class="row">
+        <button class="small-btn green" type="submit">Salva</button>
+        <button id="ex-cancel" class="small-btn" type="button">Annulla</button>
+        <button id="ex-rotate" class="small-btn danger hidden" type="button">Nuovo link</button>
+      </div>
+    </form>
+
+    <form id="group-form" class="panel wide hidden">
+      <h2 id="group-title">Nuovo gruppo</h2>
+      <label>Nome del gruppo (lo vedi solo tu)
+        <input id="group-label" type="text" maxlength="60" autocomplete="off" placeholder="es. Compiti settimana 3">
+        <span class="hint warn">Non scrivere il nome del paziente: usa un riferimento che conosci solo tu.</span>
+      </label>
+      <fieldset>
+        <legend>Esercizi del gruppo</legend>
+        <div id="group-items" class="group-items"></div>
+      </fieldset>
+      <p id="group-error" class="error hidden" role="alert"></p>
+      <div class="row">
+        <button class="small-btn green" type="submit">Salva</button>
+        <button id="group-cancel" class="small-btn" type="button">Annulla</button>
+        <button id="group-rotate" class="small-btn danger hidden" type="button">Nuovo link</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- ESERCIZIO -->
+  <section id="screen-play" class="screen">
+    <div class="topbar">
+      <button id="play-back" class="back-btn" type="button">&#8592; Esci</button>
+      <span id="progress" class="topbar-title"></span>
+    </div>
+
+    <div id="picture" class="picture"></div>
+    <div id="boxes" class="boxes" aria-label="Riquadri della parola"></div>
+    <input id="kb" class="kb" type="text" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" aria-label="Scrivi la parola">
+    <button id="back-key" class="small-btn hidden" type="button" aria-label="Cancella l'ultima lettera">&#9003; Cancella</button>
+
+    <div id="tiles" class="tiles"></div>
+
+    <p id="win" class="win hidden">Bravo!</p>
+    <button id="next-btn" class="big-btn green hidden" type="button">Avanti</button>
+  </section>
+
+  <!-- FINE -->
+  <section id="screen-done" class="screen">
+    <h1 class="title">Bravissimo!</h1>
+    <p class="subtitle">Hai finito tutte le parole</p>
+    <button id="again-btn" class="big-btn coral" type="button">Ricomincia</button>
+    <button id="done-menu" class="ghost-btn" type="button">Torna al menu</button>
+  </section>
+
+  <div id="confetti"></div>
+  <script src="game.js"></script>
+  <script src="parole.js"></script>
+</body>
+</html>
